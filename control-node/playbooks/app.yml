@@ -1,0 +1,92 @@
+- name: Application settings
+  hosts: app
+  user: vagrant
+  become: yes
+  vars:
+    - dbhost: "db"
+    - dbname: "notes"
+    - dbusername: "notesuser"
+    - dbpassword: "notesuser"
+  tasks:
+    - name: Hosts settings
+      lineinfile:
+        dest: /etc/hosts
+        state: present
+        line: "{{item}}"
+      with_items:
+        - 192.168.56.2 control-node
+        - 192.168.56.3 app
+        - 192.168.56.4 db  
+    - name: Add application user
+      user:
+        name: app
+        comment: Application user
+        uid: 500
+    - name: Java settings
+      yum:
+        name: java-1.8.0-openjdk-devel
+        state: latest
+    - name: Download Apache Maven
+      get_url:
+        url: https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.1.0/apache-maven-3.1.0-bin.tar.gz 
+        dest: /opt/apache-maven-3.1.0-bin.tar.gz
+    - name: Unzip Apache Maven
+      ansible.builtin.unarchive:
+        src: /opt/apache-maven-3.1.0-bin.tar.gz
+        dest: /opt
+        remote_src: yes
+    - name: Folder application settings
+      file:
+        path: /opt/notes
+        state: directory
+        owner: app
+        group: app
+    - name: Git client settings
+      yum:
+        name: git
+        state: latest
+    - name: Clone of application repository
+      git:
+        repo: 'https://github.com/callicoder/spring-boot-mysql-rest-api-tutorial.git'
+        dest: /opt/notes
+        clone: yes
+        force: yes
+    - name: POM file settings
+      template:
+        src: pom.xml
+        dest: /opt/notes/pom.xml
+    - name: Database properties file settings
+      template:
+        src: application.properties
+        dest: /opt/notes/src/main/resources/application.properties
+    - name: Build application
+      command: /opt/apache-maven-3.1.0/bin/mvn -f /opt/notes/pom.xml package
+      become_user: app
+    - name: Download Apache Maven dependencies
+      shell:
+        cmd: /opt/apache-maven-3.1.0/bin/mvn org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version | grep -v '\['
+    - name: Get package version
+      shell:
+        cmd: /opt/apache-maven-3.1.0/bin/mvn org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate -Dexpression=project.version | grep -v '\['
+        chdir: /opt/notes/
+      register: app_version
+    - name: Systemd service settings
+      template:
+        src: etc/systemd/system/notes.service
+        dest: /etc/systemd/system/notes.service
+      notify: reload daemon
+    - name: Start systemd service
+      service:
+        name: notes
+        state: restarted
+  roles:
+      - default-so-settings
+  handlers:
+    - name: reload app
+      systemd:
+        state: restarted
+        daemon_reload: yes 
+        name: 'notes'
+    - name: reload daemon
+      systemd:
+        daemon_reexec: yes

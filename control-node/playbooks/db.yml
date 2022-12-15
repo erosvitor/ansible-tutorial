@@ -1,0 +1,23 @@
+- name: Database settings
+  hosts: db
+  user: vagrant
+  become: yes
+  vars_files:
+    - vars/main.yml
+  vars:
+    - dbname: "notes"
+    - dbusername: "root"
+    - dbpassword: "root"
+  tasks:
+    - name: Hosts settings
+      lineinfile:
+        dest: /etc/hosts
+        state: present
+        line: "{{item}}"
+      with_items:
+        - 192.168.56.2 control-node
+        - 192.168.56.3 app
+        - 192.168.56.4 db  
+  roles:
+    - default-so-settings
+    - role: geerlingguy.mysql

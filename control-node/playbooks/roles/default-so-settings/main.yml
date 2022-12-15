@@ -1,0 +1,9 @@
+- name: Operation system update
+  yum:
+    name: '*'
+    state: latest
+- name: Git client installation
+  yum:
+    name: git
+    state: latest
+
